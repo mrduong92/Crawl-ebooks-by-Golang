@@ -24,11 +24,11 @@ type Ebooks struct {
 	List []Ebook `json:"ebooks"`
 }
 
-func getLinks(uri string) []string {
-	var url []string
+func getPagesUrl(uri string) []string {
+	var listUrl []string
 	resp, err := http.Get(uri)
 	if err != nil {
-		return url
+		return listUrl
 	}
 	defer resp.Body.Close()
 
@@ -37,9 +37,9 @@ func getLinks(uri string) []string {
 		if !strings.Contains(link, uri) {
 			continue
 		}
-		url = append(url, link)
+		listUrl = append(listUrl, link)
 	}
-	return url
+	return listUrl
 }
 
 func (ebooks *Ebooks) getEbooksByUrl(url string) error {
@@ -71,9 +71,9 @@ func (ebooks *Ebooks) getEbooksByUrl(url string) error {
 	return nil
 }
 
-func (ebooks *Ebooks) getAllEbooks(listURL []string) error {
+func (ebooks *Ebooks) getAllEbooks(listUrl []string) error {
 	eg := errgroup.Group{}
-	for _, url := range listURL {
+	for _, url := range listUrl {
 		uri := url
 		eg.Go(func() error {
 			err := ebooks.getEbooksByUrl(uri)
@@ -102,9 +102,9 @@ func main() {
 		fmt.Println("Please specify start page")
 		os.Exit(1)
 	}
-	links := getLinks(args[0])
+	listUrl := getPagesUrl(args[0])
 	ebooks := Ebooks{}
-	err := ebooks.getAllEbooks(links)
+	err := ebooks.getAllEbooks(listUrl)
 	checkError(err)
 	ebooksJson, err := json.Marshal(ebooks)
 	checkError(err)
