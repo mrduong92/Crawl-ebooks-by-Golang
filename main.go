@@ -11,6 +11,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -21,7 +22,13 @@ type Ebook struct {
 }
 
 type Ebooks struct {
-	List []Ebook `json:"ebooks"`
+	TotalPages  int     `json:"total_pages"`
+	TotalEbooks int     `json:"total_ebooks"`
+	List        []Ebook `json:"ebooks"`
+}
+
+func NewEbooks() *Ebooks {
+	return &Ebooks{}
 }
 
 func getPagesUrl(uri string) []string {
@@ -31,6 +38,8 @@ func getPagesUrl(uri string) []string {
 		return listUrl
 	}
 	defer resp.Body.Close()
+
+	fmt.Println(resp.Body)
 
 	links := collectlinks.All(resp.Body)
 	for _, link := range links {
@@ -66,15 +75,28 @@ func (ebooks *Ebooks) getEbooksByUrl(url string) error {
 			Title: docTitle,
 			Image: docImg,
 		}
+		ebooks.TotalEbooks++
 		ebooks.List = append(ebooks.List, Ebook)
 	})
 	return nil
 }
 
-func (ebooks *Ebooks) getAllEbooks(listUrl []string) error {
+func (ebooks *Ebooks) getTotalPages(url string) error {
+	doc, err := goquery.NewDocument(url)
+	if err != nil {
+		return err
+	}
+	lastPageLink, _ := doc.Find("ul.pagination li:last-child a").Attr("href")
+	split := strings.Split(lastPageLink, "?page=")
+	totalPages, _ := strconv.Atoi(split[1])
+	ebooks.TotalPages = totalPages
+	return nil
+}
+
+func (ebooks *Ebooks) getAllEbooks(currentUrl string) error {
 	eg := errgroup.Group{}
-	for _, url := range listUrl {
-		uri := url
+	for i := 1; i <= ebooks.TotalPages; i++ {
+		uri := fmt.Sprintf("%v?page=%v", currentUrl, i)
 		eg.Go(func() error {
 			err := ebooks.getEbooksByUrl(uri)
 			if err != nil {
@@ -102,9 +124,11 @@ func main() {
 		fmt.Println("Please specify start page")
 		os.Exit(1)
 	}
-	listUrl := getPagesUrl(args[0])
-	ebooks := Ebooks{}
-	err := ebooks.getAllEbooks(listUrl)
+	currentUrl := args[0]
+	ebooks := NewEbooks()
+	err := ebooks.getTotalPages(currentUrl)
+	checkError(err)
+	err = ebooks.getAllEbooks(currentUrl)
 	checkError(err)
 	ebooksJson, err := json.Marshal(ebooks)
 	checkError(err)
